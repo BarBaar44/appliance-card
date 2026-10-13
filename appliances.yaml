@@ -1,0 +1,48 @@
+# Minimal: both machines with the default entities and actions.
+type: custom:appliance-card
+
+---
+# Everything spelled out. Any entity can be replaced, or set to null to
+# switch that part off.
+type: custom:appliance-card
+machines:
+  - profile: washer
+    name: Laundry
+    entities:
+      power: binary_sensor.samsung_washer_da_wm_tp2_20_common_power
+      running: binary_sensor.samsung_washer_da_wm_tp2_20_common_running
+      smart_control: binary_sensor.samsung_washer_da_wm_tp2_20_common_smart_control
+      machine_state: sensor.samsung_washer_da_wm_tp2_20_common_machine_state
+      phase: sensor.samsung_washer_da_wm_tp2_20_common_progress
+      progress: sensor.samsung_washer_da_wm_tp2_20_common_progress_percent
+      remaining: sensor.samsung_washer_da_wm_tp2_20_common_completion_time
+      program: select.samsung_washer_da_wm_tp2_20_common_cycle
+      start_time: sensor.laundry_start_time
+      unload: input_boolean.laundry_state_helper
+      door: binary_sensor.laudry_door_sensor_contact
+      detergent_low: binary_sensor.samsung_washer_da_wm_tp2_20_common_detergent_low
+      drum_clean_due: sensor.samsung_washer_da_wm_tp2_20_common_drum_clean_due_in
+    tap_action:
+      action: navigate
+      navigation_path: "#laundry"
+    hold_action:
+      action: more-info
+  - profile: dishwasher
+    name: Dishwasher
+    entities:
+      operation_state: sensor.siemens_dishwasher_operation_state
+      power: switch.siemens_dishwasher_power
+      door: binary_sensor.siemens_dishwasher_door
+      progress: sensor.siemens_dishwasher_program_progress
+      remaining: sensor.siemens_dishwasher_remaining_program_time
+      phase: sensor.siemens_dishwasher_program_phase
+      program: sensor.siemens_dishwasher_active_program
+      rinse_aid: sensor.siemens_dishwasher_rinse_aid
+      salt: sensor.siemens_dishwasher_salt
+      machine_care: binary_sensor.siemens_dishwasher_machine_care
+      start_time: sensor.dishwasher_start_time
+    tap_action:
+      action: perform-action
+      perform_action: script.diashwasher_script
+    hold_action:
+      action: more-info

@@ -1,0 +1,11 @@
+{
+  "name": "appliance-card",
+  "private": true,
+  "description": "Development only: tests for appliance-card.js. The card itself has no dependencies.",
+  "scripts": {
+    "test": "node tests/appliance-card.test.js"
+  },
+  "devDependencies": {
+    "jsdom": "^24.1.0"
+  }
+}
