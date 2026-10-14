@@ -5,11 +5,13 @@
 First release. One card for the washing machine and the dishwasher, side by side, replacing two mushroom template cards and their helper template sensors.
 
 ### Added
-* Washer and dishwasher profiles: colour, icon, status, programme and phase names worked out in the card from the machines' own entities. No Jinja, no template sensors.
-* Start time while waiting for the cheapest hour, finish or ready time while running, with progress bar, percentage and time left.
-* Readable programme and phase names (Eco 40-60, Main wash, Spin, ...), whatever form the raw value arrives in.
-* One attention badge per machine while it is not running: detergent low, drum clean due, rinse aid empty, salt empty, machine care due.
-* Unload blinks softly until the machine is emptied. The washer shakes while running (faster while spinning) and the dishwasher bobs. All animations stop under reduced motion.
-* Dishwasher pause, action required and error states. Unknown sensors while the dishwasher is off are treated as normal.
-* Tap and hold per machine through Home Assistant's own actions (navigate, perform-action, more-info, ...). The card never calls services on the machines.
-* Every colour configurable with `colors`.
+* **Washer and dishwasher in one card.** The washer on the left, the dishwasher mirrored on the right with its icon on the far right. Fits 2 rows (at most 118px), the same height as the Heating Control Card with one room.
+* **Status worked out in the card** from the machines' own entities: colour, icon, status, programme and phase. No Jinja, no template sensors.
+* **Times:** Start while waiting for the cheapest hour, Finish (washer) or Ready (dishwasher) while running, in Home Assistant's time zone.
+* **Progress** while running: bar, programme, percentage and time left. The remaining time follows the sensor's own unit.
+* **Readable names** for programmes and phases (Eco 40-60, Eco 50°, Main wash, Spin, ...), whatever form the raw value arrives in.
+* **Attention badge** per machine, only while it is not running: detergent low, drum clean due, rinse aid empty, salt empty, machine care due. It takes the progress bar's place, so the card never grows. Tap it to open the sensor behind it.
+* **Animations:** Unload blinks softly until the machine is emptied. The washer shakes while running, faster while spinning; the dishwasher bobs. All stop under reduced motion.
+* **Dishwasher states** pause, action required and error. Unknown sensors while the dishwasher is off are treated as normal.
+* **Actions:** tap and hold per machine through Home Assistant's own actions (navigate, perform-action, more-info, ...). The card never calls services on the machines.
+* **Colours:** every colour configurable with `colors`.
