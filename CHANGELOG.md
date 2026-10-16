@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.0
+
+### Added
+* **Visual editor:** the title, colours and one section per machine: profile, name, every entity (the profile's defaults shown), tap and hold actions and the more-info entity. An empty slot after the last machine adds one (up to three); None removes a machine. Clearing an entity switches that part off; changing a profile starts the machine from that profile's defaults. Only values that differ from the defaults are written to the YAML (the default washer and dishwasher pair not at all), and options the editor does not show are kept.
+
 ## v0.1.0
 
 First release. One card for the washing machine and the dishwasher, side by side, replacing two mushroom template cards and their helper template sensors.
