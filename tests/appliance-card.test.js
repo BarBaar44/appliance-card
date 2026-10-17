@@ -153,7 +153,16 @@ r = render({ ...washer(), ...dish({ op: "ready", door: "off", start: iso(2, 40),
 assert.equal(r.dish.status, "Waiting");
 assert.equal(r.dish.time, "Start 02:40");
 assert.equal(r.dish.colour, col("waiting"));
-assert.equal(r.dish.badge, "Salt empty", "nearly_empty is not low");
+assert.equal(r.dish.badge, "Salt empty", "empty beats nearly_empty");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", rinse: "nearly_empty", salt: "nearly_empty", care: "on" }) });
+assert.equal(r.dish.badge, "Refill rinse aid", "nearly_empty rinse aid shows, before salt and machine care");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", salt: "nearly_empty", care: "on" }) });
+assert.equal(r.dish.badge, "Refill salt", "nearly_empty salt shows, before machine care");
+
+r = render({ ...washer(), ...dish({ op: "BSH.Common.EnumType.OperationState.Run", left: 30, unit: "min", rinse: "nearly_empty" }) });
+assert.equal(r.dish.badge, null, "no supply badge while running");
 
 r = render({ ...washer(), ...dish({ op: "inactive", door: "on", rinse: "empty", care: "on" }) });
 assert.equal(r.dish.status, "Door open");

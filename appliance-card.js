@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -583,8 +583,13 @@ class ApplianceCard extends HTMLElement {
     }
 
     if (!v.active) {
-      if (key(this._val(e.rinse_aid)) === "empty") v.badge = ["mdi:shimmer", "Rinse aid empty", e.rinse_aid];
-      else if (key(this._val(e.salt)) === "empty") v.badge = ["mdi:shaker-outline", "Salt empty", e.salt];
+      // Empty first; nearly_empty is the dishwasher's own "refill" warning and the value it reports in practice.
+      const rinse = key(this._val(e.rinse_aid));
+      const salt = key(this._val(e.salt));
+      if (rinse === "empty") v.badge = ["mdi:shimmer", "Rinse aid empty", e.rinse_aid];
+      else if (salt === "empty") v.badge = ["mdi:shaker-outline", "Salt empty", e.salt];
+      else if (rinse === "nearlyempty") v.badge = ["mdi:shimmer", "Refill rinse aid", e.rinse_aid];
+      else if (salt === "nearlyempty") v.badge = ["mdi:shaker-outline", "Refill salt", e.salt];
       else if (this._on(e.machine_care)) v.badge = ["mdi:wrench-clock", "Machine care due", e.machine_care];
     }
     return v;

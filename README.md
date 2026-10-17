@@ -127,7 +127,7 @@ First match wins:
 | door closed                        | waiting   | Waiting         | Start time, badge         |
 | otherwise                          | off       | Door open       | badge                     |
 
-`finished` wins over the door, because the dishwasher opens its own door near the end of a programme. Badge: rinse aid empty, then salt empty, then machine care due. `nearly_empty` does not count. Sensors that are `unknown` while the dishwasher is off are normal.
+`finished` wins over the door, because the dishwasher opens its own door near the end of a programme. Badge: rinse aid empty, salt empty, rinse aid nearly empty ("Refill rinse aid"), salt nearly empty ("Refill salt"), then machine care due. The dishwasher reports `nearly_empty` as its refill warning; `empty` is rare in practice. Sensors that are `unknown` while the dishwasher is off are normal.
 
 Remaining time follows the sensor's own unit (`min`, `h` or `s`) when it has one, else minutes for the washer and hours for the dishwasher. A timestamp works too.
 

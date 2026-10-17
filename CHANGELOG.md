@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.1
+
+### Fixed
+* **Dishwasher refill warnings:** the badge now also shows "Refill rinse aid" and "Refill salt" when the dishwasher reports `nearly_empty`. That is the refill warning the dishwasher actually sends; `empty` hardly ever arrives, so the badge never showed. `empty` still comes first, then the nearly-empty warnings, then machine care.
+
 ## v0.2.0
 
 ### Added
