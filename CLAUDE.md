@@ -7,7 +7,7 @@ HACS dashboard card (Lovelace) showing the washing machine and the dishwasher si
 | File | Purpose |
 |---|---|
 | `appliance-card.js` | The whole card: plain custom element, no build step, no dependencies. `PROFILES` holds the default entities and actions per machine type. |
-| `tests/appliance-card.test.js` | jsdom tests for every state of both profiles, actions, config errors. `npm test`. |
+| `tests/appliance-card.test.js` | jsdom tests for every state of both profiles, actions, config errors, editor round trips. `npm test`. |
 | `hacs.json` | HACS manifest. |
 | `README.md` | User docs, also the HACS info page. Keep the entity, rule and colour tables in sync with `PROFILES`, the `_washer`/`_dishwasher` rules and `COLORS`. |
 | `CHANGELOG.md` | One `## vX.Y.Z` section per release; the Release workflow uses it as the release notes. |
@@ -21,6 +21,7 @@ HACS dashboard card (Lovelace) showing the washing machine and the dishwasher si
 * Attention badges only while the machine is not running or paused. They use the progress slot, so the card never grows beyond its running height.
 * Dishwasher sensors are `unknown` while it is off: normal, not an error.
 * Remaining time: the sensor's unit wins; defaults are minutes (washer) and hours (dishwasher).
+* Visual editor (`ApplianceCardEditor`, on `ha-form`): machines are slots `m0`..`m2`, with one empty slot (profile `none`) after the used ones; the schema is rebuilt when the profiles change. Fields show the profile defaults; only non-defaults are written; a cleared entity is `null`; a changed profile drops that machine's old values; the default pair is not written; unknown keys (card and machine) are kept. Entity roles come straight from `PROFILES`; add a label to `APPLIANCE_ROLE_LABELS` for a new role.
 * Re-render only when one of the card's own entities changes; the DOM is built once per config and updated in place.
 
 ## Releasing

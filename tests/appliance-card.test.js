@@ -253,6 +253,88 @@ function finish() {
   assert(!c._ids.includes(`${D}salt`));
   assert.deepEqual(Card.getStubConfig(), { machines: [{ profile: "washer" }, { profile: "dishwasher" }] });
 
-  console.log("ALL OK");
-  process.exit(0);
+  editorTests().then(() => {
+    console.log("ALL OK");
+    process.exit(0);
+  }).catch((err) => { console.error(err); process.exit(1); });
+}
+
+async function editorTests() {
+  const Editor = w.customElements.get("appliance-card-editor");
+  assert(Editor, "editor registered");
+  assert.equal(Card.getConfigElement().tagName.toLowerCase(), "appliance-card-editor");
+
+  // the minimal config shows both machines with every default, and writes nothing new
+  const minimal = { type: "custom:appliance-card", grid_options: { columns: 12, rows: 2 } };
+  const d0 = Editor.toData(minimal);
+  assert.equal(d0.m0.profile, "washer");
+  assert.equal(d0.m0.name, "Laundry");
+  assert.equal(d0.m0.entities.running, `binary_sensor.${W}running`);
+  assert.equal(d0.m0.entity, `sensor.${W}machine_state`);
+  assert.equal(d0.m1.profile, "dishwasher");
+  assert.equal(d0.m1.entities.salt, `${D}salt`);
+  assert.equal(d0.m2, undefined);
+  assert.deepEqual(Editor.toConfig(d0, minimal), minimal);
+  assert.deepEqual(Editor.toConfig(Editor.toData(Card.getStubConfig()), Card.getStubConfig()), { type: "custom:appliance-card" });
+
+  // name, changed and cleared entities, actions, more-info target
+  const d1 = Editor.toData(minimal);
+  d1.m1.name = "Vaatwasser";
+  d1.m1.entities.salt = "";
+  d1.m0.entities.door = "binary_sensor.washer_door";
+  d1.m0.tap_action = { action: "more-info" };
+  d1.m1.entity = "switch.siemens_dishwasher_power";
+  const c1 = Editor.toConfig(d1, minimal);
+  assert.deepEqual(c1.machines, [
+    { profile: "washer", entities: { door: "binary_sensor.washer_door" }, tap_action: { action: "more-info" } },
+    { profile: "dishwasher", name: "Vaatwasser", entities: { salt: null }, entity: "switch.siemens_dishwasher_power" },
+  ]);
+  assert.equal(Editor.toData(c1).m1.entities.salt, "");
+  assert.deepEqual(Editor.toConfig(Editor.toData(c1), c1), c1, "round trip");
+
+  // a third machine, then removing the second; changing a profile starts from its defaults
+  const d2 = Editor.toData(c1);
+  d2.m2 = { profile: "washer" };
+  const c2 = Editor.toConfig(d2, c1);
+  assert.equal(c2.machines.length, 3);
+  assert.deepEqual(c2.machines[2], { profile: "washer" });
+  const d3 = Editor.toData(c2);
+  d3.m1.profile = "none";
+  assert.deepEqual(Editor.toConfig(d3, c2).machines, [c1.machines[0]]);
+  const d4 = Editor.toData(c1);
+  d4.m1.profile = "washer";
+  assert.deepEqual(Editor.toConfig(d4, c1).machines[1], { profile: "washer" }, "old dishwasher values dropped");
+
+  // title, colours; unknown keys kept
+  const full = { type: "custom:appliance-card", title: "Machines", colors: { running: "teal" }, view_layout: { position: "main" } };
+  assert.deepEqual(Editor.toConfig(Editor.toData(full), full), full);
+  const d5 = Editor.toData(full);
+  d5.colors.running = " ";
+  d5.title = "";
+  const c5 = Editor.toConfig(d5, full);
+  assert.equal(c5.colors, undefined, "empty colour dropped");
+  assert.equal(c5.title, undefined, "empty title dropped");
+
+  // every config the editor writes is accepted by the card
+  for (const c of [c1, c2, Editor.toConfig(d3, c2), Editor.toConfig(d4, c1), c5]) new Card().setConfig(c);
+
+  // with a stub ha-form: renders, one empty slot to add a machine, passes changes on
+  w.customElements.define("ha-form", class extends w.HTMLElement {});
+  const ed = new Editor();
+  const got = [];
+  ed.addEventListener("config-changed", (e) => got.push(e.detail.config));
+  ed.setConfig(minimal);
+  w.document.body.appendChild(ed);
+  await new Promise((r) => setTimeout(r, 0));
+  const form = ed.querySelector("ha-form");
+  assert(form, "ha-form rendered");
+  assert.deepEqual(form.data.m2, { profile: "none" });
+  assert.deepEqual(form.schema.map((x) => x.name), ["title", "m0", "m1", "m2", "colors"]);
+  assert.equal(form.computeLabel({ name: "rinse_aid" }), "Rinse aid");
+  form.dispatchEvent(new w.CustomEvent("value-changed", { detail: { value: { ...form.data, title: "Wash" } } }));
+  assert.deepEqual(got[0], { ...minimal, title: "Wash" }, "the empty slot is not written");
+  ed.setConfig(c2);
+  assert.deepEqual(form.schema.map((x) => x.name), ["title", "m0", "m1", "m2", "colors"], "three machines, no empty slot");
+  assert.equal(form.data.m2.profile, "washer");
+  ed.remove();
 }

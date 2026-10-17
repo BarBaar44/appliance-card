@@ -43,6 +43,8 @@ machines:
 
 A full example with every entity is in [appliances.yaml](appliances.yaml).
 
+Or use the card editor: one section per machine with its profile, name, every entity in use (the profile's defaults included), tap and hold actions and the more-info entity, plus the title and colours. An empty slot after the last machine adds one (up to three); setting a machine to None removes it and the ones after it. Clearing an entity switches that part off. Changing a machine's profile starts it from the new profile's defaults. Only values that differ from the defaults are written to the YAML, and options the editor does not show, such as `grid_options`, are kept.
+
 ### Card options
 
 | Option     | Default                                    |

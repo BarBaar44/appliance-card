@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -240,6 +240,10 @@ class ApplianceCard extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._seen = Object.create(null);
     this._ids = [];
+  }
+
+  static getConfigElement() {
+    return document.createElement("appliance-card-editor");
   }
 
   static getStubConfig() {
@@ -631,8 +635,252 @@ class ApplianceCard extends HTMLElement {
   }
 }
 
+/* ------------------------------------------------------------------------ */
+/* Visual editor                                                            */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * Built on HA's own <ha-form>. One section per machine, with an empty slot
+ * after the last one to add another (at most 3). Every field shows the value
+ * in use, the profile's defaults included; only values that differ from the
+ * defaults are written to the YAML. Clearing an entity switches that part
+ * off (null). Changing a machine's profile starts it from the new profile's
+ * defaults. The default pair (washer, dishwasher, nothing changed) is not
+ * written at all. Options the editor does not show (grid_options, ...) are
+ * kept.
+ */
+
+const APPLIANCE_DEFAULT_MACHINES = [{ profile: "washer" }, { profile: "dishwasher" }];
+const APPLIANCE_MAX_MACHINES = 3;
+const APPLIANCE_MACHINE_KEYS = ["profile", "name", "entities", "tap_action", "hold_action", "entity"];
+
+const APPLIANCE_ROLE_LABELS = {
+  power: "Power",
+  running: "Running",
+  smart_control: "Remote control (smart control)",
+  machine_state: "Machine state",
+  operation_state: "Operation state",
+  phase: "Phase",
+  progress: "Progress %",
+  remaining: "Time left",
+  program: "Programme",
+  start_time: "Planned start time",
+  unload: "Unload reminder",
+  door: "Door",
+  detergent_low: "Detergent low",
+  drum_clean_due: "Drum clean due in (cycles)",
+  rinse_aid: "Rinse aid",
+  salt: "Salt",
+  machine_care: "Machine care due",
+};
+
+const APPLIANCE_PROFILE_LABELS = { washer: "Washer", dishwasher: "Dishwasher", none: "None (remove)" };
+
+const applianceSame = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+
+function applianceMachineSchema(i, profile) {
+  const options = Object.keys(PROFILES).concat(i > 0 ? ["none"] : [])
+    .map((value) => ({ value, label: APPLIANCE_PROFILE_LABELS[value] || value }));
+  const schema = [{
+    type: "grid",
+    name: "",
+    schema: [
+      { name: "profile", selector: { select: { mode: "dropdown", options } } },
+      ...(PROFILES[profile] ? [{ name: "name", selector: { text: {} } }] : []),
+    ],
+  }];
+  if (PROFILES[profile]) {
+    schema.push(
+      {
+        type: "expandable",
+        name: "entities",
+        title: "Entities",
+        icon: "mdi:format-list-bulleted",
+        schema: Object.keys(PROFILES[profile].entities).map((role) => ({ name: role, selector: { entity: {} } })),
+      },
+      { name: "tap_action", selector: { ui_action: {} } },
+      { name: "hold_action", selector: { ui_action: { default_action: "more-info" } } },
+      { name: "entity", selector: { entity: {} } },
+    );
+  }
+  return {
+    type: "expandable",
+    name: `m${i}`,
+    title: PROFILES[profile] ? `Machine ${i + 1}: ${APPLIANCE_PROFILE_LABELS[profile]}` : `Machine ${i + 1}: add one`,
+    icon: profile === "washer" ? "mdi:washing-machine" : profile === "dishwasher" ? "mdi:dishwasher" : "mdi:plus",
+    expanded: false,
+    schema,
+  };
+}
+
+const applianceEditorSchema = (profiles) => [
+  { name: "title", selector: { text: {} } },
+  ...profiles.map((p, i) => applianceMachineSchema(i, p)),
+  {
+    type: "expandable",
+    name: "colors",
+    title: "Colours",
+    icon: "mdi:palette",
+    schema: [{
+      type: "grid",
+      name: "",
+      schema: Object.keys(COLORS).map((k) => ({ name: k, selector: { text: {} } })),
+    }],
+  },
+];
+
+const APPLIANCE_EDITOR_LABELS = {
+  title: "Title",
+  profile: "Machine",
+  name: "Name",
+  tap_action: "Tap action (empty: the profile's default)",
+  hold_action: "Hold action",
+  entity: "More-info entity",
+  running: "running",
+  waiting: "waiting for the start time",
+  starting: "ready to start",
+  attention: "attention",
+  unload: "unload",
+  error: "error",
+  off: "off",
+  badge: "badge",
+  ...APPLIANCE_ROLE_LABELS,
+};
+
+class ApplianceCardEditor extends HTMLElement {
+  /* config -> form data: the profile's defaults filled in, null shown as empty. */
+  static toData(config) {
+    const machines = Array.isArray(config.machines) && config.machines.length ? config.machines : APPLIANCE_DEFAULT_MACHINES;
+    const data = { title: config.title || "", colors: { ...(config.colors || {}) } };
+    machines.slice(0, APPLIANCE_MAX_MACHINES).forEach((m, i) => {
+      const p = PROFILES[m && m.profile];
+      if (!p) return;
+      const ent = m.entities || {};
+      const entities = {};
+      for (const [role, def] of Object.entries(p.entities)) {
+        const v = role in ent ? ent[role] : def;
+        entities[role] = v || "";
+      }
+      data[`m${i}`] = {
+        profile: m.profile,
+        name: m.name || p.name,
+        entities,
+        tap_action: m.tap_action,
+        hold_action: m.hold_action,
+        entity: m.entity || p.entities[p.hold_entity] || "",
+      };
+    });
+    return data;
+  }
+
+  /* form data -> config: only what differs from the profile defaults; cleared entity -> null. */
+  static toConfig(data, previous) {
+    const prev = previous || {};
+    const config = { type: "custom:appliance-card" };
+    for (const [k, v] of Object.entries(prev)) {
+      if (!["type", "title", "machines", "colors"].includes(k)) config[k] = v;
+    }
+    if (typeof data.title === "string" && data.title.trim()) config.title = data.title;
+
+    const prevMachines = Array.isArray(prev.machines) && prev.machines.length ? prev.machines : APPLIANCE_DEFAULT_MACHINES;
+    const machines = [];
+    for (let i = 0; i < APPLIANCE_MAX_MACHINES; i++) {
+      const slot = data[`m${i}`];
+      if (!slot || !PROFILES[slot.profile]) break;
+      const p = PROFILES[slot.profile];
+      const pm = prevMachines[i];
+      const out = { profile: slot.profile };
+      machines.push(out);
+      // A new profile starts from that profile's defaults.
+      if (!pm || pm.profile !== slot.profile) continue;
+      for (const [k, v] of Object.entries(pm)) {
+        if (!APPLIANCE_MACHINE_KEYS.includes(k)) out[k] = v;
+      }
+      if (slot.name && slot.name !== p.name) out.name = slot.name;
+      const entities = {};
+      for (const [role, def] of Object.entries(p.entities)) {
+        const v = (slot.entities || {})[role];
+        if (!v) entities[role] = null;
+        else if (v !== def) entities[role] = v;
+      }
+      if (Object.keys(entities).length) out.entities = entities;
+      if (slot.tap_action && Object.keys(slot.tap_action).length) out.tap_action = slot.tap_action;
+      if (slot.hold_action && Object.keys(slot.hold_action).length) out.hold_action = slot.hold_action;
+      if (slot.entity && slot.entity !== p.entities[p.hold_entity]) out.entity = slot.entity;
+    }
+    if (machines.length && !applianceSame(machines, APPLIANCE_DEFAULT_MACHINES)) config.machines = machines;
+
+    const colors = {};
+    for (const [k, v] of Object.entries(data.colors || {})) {
+      if (typeof v === "string" && v.trim()) colors[k] = v.trim();
+    }
+    if (Object.keys(colors).length) config.colors = colors;
+    return config;
+  }
+
+  setConfig(config) {
+    this._config = config;
+    this._render();
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    if (this._form) this._form.hass = hass;
+  }
+
+  connectedCallback() {
+    this._loadForm().then(() => this._render());
+  }
+
+  /* ha-form is lazy loaded by HA; load it through a built-in card's editor. */
+  async _loadForm() {
+    if (customElements.get("ha-form")) return;
+    try {
+      const helpers = await window.loadCardHelpers();
+      const card = await helpers.createCardElement({ type: "entities", entities: [] });
+      if (card.constructor.getConfigElement) await card.constructor.getConfigElement();
+    } catch (_) {
+      /* rendered as soon as HA has loaded it */
+    }
+    await customElements.whenDefined("ha-form");
+  }
+
+  _render() {
+    if (!this._config || !customElements.get("ha-form")) return;
+    if (!this._form) {
+      this._form = document.createElement("ha-form");
+      this._form.computeLabel = (s) => APPLIANCE_EDITOR_LABELS[s.name] || s.name.replace(/_/g, " ");
+      this._form.addEventListener("value-changed", (e) => {
+        e.stopPropagation();
+        const config = ApplianceCardEditor.toConfig(e.detail.value, this._config);
+        this._config = config;
+        this.dispatchEvent(new CustomEvent("config-changed", { detail: { config }, bubbles: true, composed: true }));
+      });
+      this.appendChild(this._form);
+    }
+    const data = ApplianceCardEditor.toData(this._config);
+    const profiles = [];
+    for (let i = 0; i < APPLIANCE_MAX_MACHINES && data[`m${i}`]; i++) profiles.push(data[`m${i}`].profile);
+    // One empty slot after the machines in use, to add another.
+    if (profiles.length < APPLIANCE_MAX_MACHINES) {
+      data[`m${profiles.length}`] = { profile: "none" };
+      profiles.push("none");
+    }
+    const key = profiles.join(",");
+    if (this._schemaKey !== key) {
+      this._schemaKey = key;
+      this._form.schema = applianceEditorSchema(profiles);
+    }
+    this._form.hass = this._hass;
+    this._form.data = data;
+  }
+}
+
 if (!customElements.get("appliance-card")) {
   customElements.define("appliance-card", ApplianceCard);
+}
+if (!customElements.get("appliance-card-editor")) {
+  customElements.define("appliance-card-editor", ApplianceCardEditor);
 }
 
 window.customCards = window.customCards || [];
