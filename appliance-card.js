@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.2.0";
+const VERSION = "0.2.1";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -79,6 +79,7 @@ const COLORS = {
   error: ["--ac-error", "var(--error-color, #db4437)"],
   off: ["--ac-off", "var(--disabled-color, #9e9e9e)"],
   badge: ["--ac-badge", "var(--amber-color, #ffc107)"],
+  badge_empty: ["--ac-badge-empty", "var(--red-color, #f44336)"],
 };
 
 const BAD = ["unknown", "unavailable", "none", ""];
@@ -206,6 +207,11 @@ ${Object.values(COLORS).map(([v, d]) => `    ${v}: ${d};`).join("\n")}
   .badge.show { display: inline-flex; }
   .badge ha-icon { --mdc-icon-size: 14px; display: flex; flex: none; }
   .badge span { overflow: hidden; text-overflow: ellipsis; }
+  /* A supply that is completely empty: red and flashing until it is refilled. */
+  .badge.empty {
+    color: var(--ac-badge-empty); background: color-mix(in srgb, var(--ac-badge-empty) 15%, transparent);
+    animation: blink 1s ease-in-out infinite;
+  }
 
   /* Running: a washer that shakes a little (faster while spinning), a dishwasher that bobs. */
   .washer.running .icon ha-icon { animation: wobble 1.2s ease-in-out infinite; transform-origin: 50% 80%; }
@@ -229,7 +235,7 @@ ${Object.values(COLORS).map(([v, d]) => `    ${v}: ${d};`).join("\n")}
     50% { transform: translateY(-2px); }
   }
   @media (prefers-reduced-motion: reduce) {
-    .icon ha-icon, .unloading .status, .unloading .icon { animation: none !important; }
+    .icon ha-icon, .unloading .status, .unloading .icon, .badge.empty { animation: none !important; }
     .icon, .bar i { transition: none; }
   }
 `;
@@ -583,8 +589,13 @@ class ApplianceCard extends HTMLElement {
     }
 
     if (!v.active) {
-      if (key(this._val(e.rinse_aid)) === "empty") v.badge = ["mdi:shimmer", "Rinse aid empty", e.rinse_aid];
-      else if (key(this._val(e.salt)) === "empty") v.badge = ["mdi:shaker-outline", "Salt empty", e.salt];
+      // Empty first; nearly_empty is the dishwasher's own "refill" warning and the value it reports in practice.
+      const rinse = key(this._val(e.rinse_aid));
+      const salt = key(this._val(e.salt));
+      if (rinse === "empty") v.badge = ["mdi:shimmer", "Rinse aid empty", e.rinse_aid, true];
+      else if (salt === "empty") v.badge = ["mdi:shaker-outline", "Salt empty", e.salt, true];
+      else if (rinse === "nearlyempty") v.badge = ["mdi:shimmer", "Refill rinse aid", e.rinse_aid];
+      else if (salt === "nearlyempty") v.badge = ["mdi:shaker-outline", "Refill salt", e.salt];
       else if (this._on(e.machine_care)) v.badge = ["mdi:wrench-clock", "Machine care due", e.machine_care];
     }
     return v;
@@ -626,6 +637,8 @@ class ApplianceCard extends HTMLElement {
           .filter(Boolean).join(" · ");
       }
       r.badge.classList.toggle("show", !!v.badge);
+      // Fourth element: urgent (a supply completely empty), shown red and flashing.
+      r.badge.classList.toggle("empty", !!(v.badge && v.badge[3]));
       if (v.badge) {
         r.badgeIcon.setAttribute("icon", v.badge[0]);
         r.badgeText.textContent = v.badge[1];
@@ -744,6 +757,7 @@ const APPLIANCE_EDITOR_LABELS = {
   error: "error",
   off: "off",
   badge: "badge",
+  badge_empty: "badge, supply empty (flashes)",
   ...APPLIANCE_ROLE_LABELS,
 };
 

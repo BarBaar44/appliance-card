@@ -61,6 +61,7 @@ function render(states, config = {}) {
       prog: r.prog.classList.contains("show") ? `${r.what.textContent}|${r.left.textContent}` : null,
       subShown: !r.sub.classList.contains("hide") && r.sub.textContent !== "",
       badge: r.badge.classList.contains("show") ? r.badgeText.textContent : null,
+      badgeEmpty: r.badge.classList.contains("empty"),
       running: r.cells[0].classList.contains("running"),
       spin: r.cells[0].classList.contains("spin"),
       unloading: r.cells[0].classList.contains("unloading"),
@@ -103,6 +104,7 @@ assert.equal(r.washer.icon, "mdi:washing-machine-alert");
 assert.equal(r.washer.colour, col("unload"));
 assert(r.washer.unloading);
 assert.equal(r.washer.badge, "Drum clean due");
+assert.equal(r.washer.badgeEmpty, false, "washer badges do not flash");
 
 r = render({ ...washer({ power: "on", smart: "on", start: iso(1, 0), door: "off", detergent: "on" }), ...dish() });
 assert.equal(r.washer.status, "Waiting");
@@ -153,12 +155,24 @@ r = render({ ...washer(), ...dish({ op: "ready", door: "off", start: iso(2, 40),
 assert.equal(r.dish.status, "Waiting");
 assert.equal(r.dish.time, "Start 02:40");
 assert.equal(r.dish.colour, col("waiting"));
-assert.equal(r.dish.badge, "Salt empty", "nearly_empty is not low");
+assert.equal(r.dish.badge, "Salt empty", "empty beats nearly_empty");
+assert.equal(r.dish.badgeEmpty, true, "salt empty flashes red");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", rinse: "nearly_empty", salt: "nearly_empty", care: "on" }) });
+assert.equal(r.dish.badge, "Refill rinse aid", "nearly_empty rinse aid shows, before salt and machine care");
+assert.equal(r.dish.badgeEmpty, false, "nearly_empty does not flash");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", salt: "nearly_empty", care: "on" }) });
+assert.equal(r.dish.badge, "Refill salt", "nearly_empty salt shows, before machine care");
+
+r = render({ ...washer(), ...dish({ op: "BSH.Common.EnumType.OperationState.Run", left: 30, unit: "min", rinse: "nearly_empty" }) });
+assert.equal(r.dish.badge, null, "no supply badge while running");
 
 r = render({ ...washer(), ...dish({ op: "inactive", door: "on", rinse: "empty", care: "on" }) });
 assert.equal(r.dish.status, "Door open");
 assert.equal(r.dish.colour, col("off"));
 assert.equal(r.dish.badge, "Rinse aid empty", "rinse aid first");
+assert.equal(r.dish.badgeEmpty, true, "rinse aid empty flashes red");
 
 r = render({ ...washer(), ...dish({ op: "unknown", door: "on" }) });
 assert.equal(r.dish.status, "Door open", "unknown sensors while off are normal");
