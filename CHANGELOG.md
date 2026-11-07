@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.2.2
+
+### Fixed
+* **Machine care badge:** the dishwasher can report machine care through its combined machine care and filter reminder while the plain machine care reminder stays off, so the badge never showed. New dishwasher entity `machine_care_filter` (default `binary_sensor.siemens_dishwasher_machinecare_and_filter`); either reminder now shows "Machine care due". Existing configs pick it up without changes.
+
 ## v0.2.1
 
 ### Fixed

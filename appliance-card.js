@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.2.2";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -62,6 +62,7 @@ const PROFILES = {
       rinse_aid: "sensor.siemens_dishwasher_rinse_aid",
       salt: "sensor.siemens_dishwasher_salt",
       machine_care: "binary_sensor.siemens_dishwasher_machine_care",
+      machine_care_filter: "binary_sensor.siemens_dishwasher_machinecare_and_filter",
       start_time: "sensor.dishwasher_start_time",
     },
     hold_entity: "operation_state",
@@ -597,6 +598,7 @@ class ApplianceCard extends HTMLElement {
       else if (rinse === "nearlyempty") v.badge = ["mdi:shimmer", "Refill rinse aid", e.rinse_aid];
       else if (salt === "nearlyempty") v.badge = ["mdi:shaker-outline", "Refill salt", e.salt];
       else if (this._on(e.machine_care)) v.badge = ["mdi:wrench-clock", "Machine care due", e.machine_care];
+      else if (this._on(e.machine_care_filter)) v.badge = ["mdi:wrench-clock", "Machine care due", e.machine_care_filter];
     }
     return v;
   }
@@ -685,6 +687,7 @@ const APPLIANCE_ROLE_LABELS = {
   rinse_aid: "Rinse aid",
   salt: "Salt",
   machine_care: "Machine care due",
+  machine_care_filter: "Machine care and filter due",
 };
 
 const APPLIANCE_PROFILE_LABELS = { washer: "Washer", dishwasher: "Dishwasher", none: "None (remove)" };

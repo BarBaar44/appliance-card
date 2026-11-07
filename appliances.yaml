@@ -40,6 +40,7 @@ machines:
       rinse_aid: sensor.siemens_dishwasher_rinse_aid
       salt: sensor.siemens_dishwasher_salt
       machine_care: binary_sensor.siemens_dishwasher_machine_care
+      machine_care_filter: binary_sensor.siemens_dishwasher_machinecare_and_filter
       start_time: sensor.dishwasher_start_time
     tap_action:
       action: perform-action

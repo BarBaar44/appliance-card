@@ -40,6 +40,7 @@ const dish = (o = {}) => ({
   [`${D}rinse_aid`]: st(o.rinse || "full"),
   [`${D}salt`]: st(o.salt || "full"),
   "binary_sensor.siemens_dishwasher_machine_care": st(o.care || "off"),
+  "binary_sensor.siemens_dishwasher_machinecare_and_filter": st(o.careFilter || "off"),
   "sensor.dishwasher_start_time": st(o.start || "unknown"),
 });
 const hass = (states) => ({ states, language: "en", locale: { language: "en" }, config: { time_zone: "UTC" } });
@@ -164,6 +165,15 @@ assert.equal(r.dish.badgeEmpty, false, "nearly_empty does not flash");
 
 r = render({ ...washer(), ...dish({ op: "ready", door: "on", salt: "nearly_empty", care: "on" }) });
 assert.equal(r.dish.badge, "Refill salt", "nearly_empty salt shows, before machine care");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", careFilter: "on" }) });
+assert.equal(r.dish.badge, "Machine care due", "the machine care and filter reminder shows the badge on its own");
+
+r = render({ ...washer(), ...dish({ op: "ready", door: "on", salt: "nearly_empty", careFilter: "on" }) });
+assert.equal(r.dish.badge, "Refill salt", "nearly_empty salt shows before the machine care and filter reminder");
+
+r = render({ ...washer(), ...dish({ op: "BSH.Common.EnumType.OperationState.Run", left: 30, unit: "min", careFilter: "on" }) });
+assert.equal(r.dish.badge, null, "no machine care badge while running");
 
 r = render({ ...washer(), ...dish({ op: "BSH.Common.EnumType.OperationState.Run", left: 30, unit: "min", rinse: "nearly_empty" }) });
 assert.equal(r.dish.badge, null, "no supply badge while running");
