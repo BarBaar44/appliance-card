@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -43,6 +43,7 @@ const PROFILES = {
       door: "binary_sensor.laudry_door_sensor_contact",
       detergent_low: `binary_sensor.${WASHER_PREFIX}detergent_low`,
       drum_clean_due: `sensor.${WASHER_PREFIX}drum_clean_due_in`,
+      alarm: `sensor.${WASHER_PREFIX}alarm_code`,
     },
     hold_entity: "machine_state",
     tap_action: { action: "navigate", navigation_path: "#laundry" },
@@ -111,6 +112,16 @@ const DISH_PROGRAMS = {
 const num = (v) => (v === undefined || v === null || v === "" || isNaN(Number(v)) ? null : Number(v));
 
 /* "BSH.Common.EnumType.OperationState.Run" and "run" both become "run". */
+/* Washer alarm code -> short label; null when there is no alarm. */
+const WASHER_ALARMS = { dispenserabnormal: "Dispenser fault" };
+function washerAlarm(v) {
+  const k = key(v);
+  if (!k || ["none", "unknown", "unavailable", "null"].includes(k)) return null;
+  if (WASHER_ALARMS[k]) return WASHER_ALARMS[k];
+  const words = String(v).split(".").pop().replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 const key = (v) => String(v == null ? "" : v).split(".").pop().toLowerCase().replace(/[\s_-]/g, "");
 
 /* "dryingwithdooropen" -> "Dryingwithdooropen", "glas40" -> "Glas 40" */
@@ -529,6 +540,7 @@ class ApplianceCard extends HTMLElement {
     const phaseRaw = this._val(e.phase);
     const mstate = key(this._val(e.machine_state));
     const doorClosed = !!this._s(e.door) && this._s(e.door).state === "off";
+    const alarm = washerAlarm(this._val(e.alarm));
 
     if (this._on(e.unload)) {
       Object.assign(v, { colour: "unload", icon: "mdi:washing-machine-alert", status: "Unload", sub: "Finished", alert: true });
@@ -539,7 +551,10 @@ class ApplianceCard extends HTMLElement {
       Object.assign(v, { colour: "running", status: phaseName(WASHER_PHASES, phaseRaw) || "Running", sub: program || "", active: true, running: true });
       v.spin = key(phaseRaw) === "spin";
       this._progress(m, v);
-    } else if (this._on(e.smart_control)) {
+    }
+
+    // An alarm during a wash replaces the programme/phase text and switches to the alert icon.
+    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm }); else if (this._on(e.smart_control)) {
       Object.assign(v, { colour: "waiting", status: "Waiting", sub: "Remote start armed" });
       const st = this._startClock(e.start_time);
       if (st) v.time = ["Start", st];
@@ -551,7 +566,8 @@ class ApplianceCard extends HTMLElement {
 
     if (!v.active) {
       const due = num(this._val(e.drum_clean_due));
-      if (this._on(e.detergent_low)) v.badge = ["mdi:bottle-tonic-outline", "Detergent low", e.detergent_low];
+      if (alarm) v.badge = ["mdi:washing-machine-alert", alarm, e.alarm, true];
+      else if (this._on(e.detergent_low)) v.badge = ["mdi:bottle-tonic-outline", "Detergent low", e.detergent_low];
       else if (due !== null && due <= 0) v.badge = ["mdi:washing-machine", "Drum clean due", e.drum_clean_due];
     }
     return v;
@@ -682,6 +698,7 @@ const APPLIANCE_ROLE_LABELS = {
   door: "Door",
   detergent_low: "Detergent low",
   drum_clean_due: "Drum clean due in (cycles)",
+  alarm: "Alarm code",
   rinse_aid: "Rinse aid",
   salt: "Salt",
   machine_care: "Machine care due",

@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.0
+
+### Added
+* **Washer alarm:** new washer role `alarm` (default `sensor.…alarm_code`). During a wash an alarm shows the alert icon and replaces the programme or phase on the progress bar, e.g. "Dispenser fault" for `DispenserAbnormal`; other codes are spelled out. An alarm still active after the wash is the first badge, red and flashing. Set `alarm: null` to switch it off.
+
 ## v0.2.1
 
 ### Fixed

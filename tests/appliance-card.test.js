@@ -28,6 +28,7 @@ const washer = (o = {}) => ({
   "binary_sensor.laudry_door_sensor_contact": st(o.door || "on"),
   [`binary_sensor.${W}detergent_low`]: st(o.detergent || "off"),
   [`sensor.${W}drum_clean_due_in`]: st(o.drum ?? 12),
+  [`sensor.${W}alarm_code`]: st(o.alarm || "none"),
 });
 const dish = (o = {}) => ({
   [`${D}operation_state`]: st(o.op || "inactive"),
@@ -97,6 +98,26 @@ assert.equal(r.washer.status, "Paused");
 assert.equal(r.washer.sub, "Washing");
 assert.equal(r.washer.colour, col("attention"));
 assert.equal(r.washer.prog, "Washing|40% · 0:50 left");
+
+r = render({ ...washer({ power: "on", running: "on", mstate: "active", phase: "wash", pct: 10, left: 150, alarm: "DispenserAbnormal" }), ...dish() });
+assert.equal(r.washer.status, "Washing", "an alarm keeps the phase as status");
+assert.equal(r.washer.icon, "mdi:washing-machine-alert");
+assert.equal(r.washer.colour, col("running"));
+assert.equal(r.washer.prog, "Dispenser fault|10% · 2:30 left", "the alarm replaces the programme on the progress bar");
+assert.equal(r.washer.badge, null, "no badge while running, even with an alarm");
+
+r = render({ ...washer({ mstate: "pause", running: "on", phase: "wash", pct: 40, left: 50, alarm: "WaterSupplyError" }), ...dish() });
+assert.equal(r.washer.prog, "Water supply error|40% · 0:50 left", "unknown codes are spelled out");
+
+r = render({ ...washer({ power: "on", alarm: "DispenserAbnormal", detergent: "on", drum: 0 }), ...dish() });
+assert.equal(r.washer.badge, "Dispenser fault", "alarm before detergent and drum clean");
+assert.equal(r.washer.badgeEmpty, true, "an alarm badge flashes red");
+assert.equal(r.washer.icon, "mdi:washing-machine", "idle: the alarm shows only as the badge");
+
+for (const quiet of ["none", "unknown", "unavailable"]) {
+  r = render({ ...washer({ power: "on", running: "on", phase: "wash", pct: 10, left: 150, alarm: quiet }), ...dish() });
+  assert.equal(r.washer.icon, "mdi:washing-machine", `${quiet} is no alarm`);
+}
 
 r = render({ ...washer({ unload: "on", running: "on", drum: 0 }), ...dish() });
 assert.equal(r.washer.status, "Unload", "unload wins over everything");

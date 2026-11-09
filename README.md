@@ -83,6 +83,7 @@ A misspelled entity role shows an error card instead of being ignored.
 | `door`           | `binary_sensor.laudry_door_sensor_contact` (on = open) |
 | `detergent_low`  | `binary_sensor.…detergent_low`                 |
 | `drum_clean_due` | `sensor.…drum_clean_due_in` (cycles, 0 or less = due) |
+| `alarm`          | `sensor.…alarm_code` (`none` = no alarm)       |
 
 First match wins:
 
@@ -96,7 +97,9 @@ First match wins:
 | power on                    | attention | No remote control | badge                  |
 | otherwise                   | off       | Off               | badge                  |
 
-Badge: detergent low, then drum clean due.
+Badge: alarm (red, flashes), then detergent low, then drum clean due.
+
+Alarm: when the washer reports an alarm code during a wash (running or paused), the alert icon shows and the alarm replaces the programme or phase on the progress bar, e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). Other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm.
 
 ### Dishwasher
 
@@ -150,7 +153,7 @@ colors:
 | `error`     | dishwasher error                                 | `var(--error-color)`  |
 | `off`       | off, door open, unavailable                      | `var(--disabled-color)` |
 | `badge`     | attention badges                                 | `var(--amber-color)`  |
-| `badge_empty` | rinse aid or salt completely empty (flashes)   | `var(--red-color)`    |
+| `badge_empty` | rinse aid or salt empty, washer alarm (flashes) | `var(--red-color)`    |
 
 ## Layout
 
