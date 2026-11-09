@@ -111,7 +111,6 @@ const DISH_PROGRAMS = {
 
 const num = (v) => (v === undefined || v === null || v === "" || isNaN(Number(v)) ? null : Number(v));
 
-/* "BSH.Common.EnumType.OperationState.Run" and "run" both become "run". */
 /* Washer alarm code -> short label; null when there is no alarm. */
 const WASHER_ALARMS = { dispenserabnormal: "Dispenser fault" };
 function washerAlarm(v) {
@@ -122,6 +121,7 @@ function washerAlarm(v) {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/* "BSH.Common.EnumType.OperationState.Run" and "run" both become "run". */
 const key = (v) => String(v == null ? "" : v).split(".").pop().toLowerCase().replace(/[\s_-]/g, "");
 
 /* "dryingwithdooropen" -> "Dryingwithdooropen", "glas40" -> "Glas 40" */
@@ -551,10 +551,7 @@ class ApplianceCard extends HTMLElement {
       Object.assign(v, { colour: "running", status: phaseName(WASHER_PHASES, phaseRaw) || "Running", sub: program || "", active: true, running: true });
       v.spin = key(phaseRaw) === "spin";
       this._progress(m, v);
-    }
-
-    // An alarm during a wash replaces the programme/phase text and switches to the alert icon.
-    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm }); else if (this._on(e.smart_control)) {
+    } else if (this._on(e.smart_control)) {
       Object.assign(v, { colour: "waiting", status: "Waiting", sub: "Remote start armed" });
       const st = this._startClock(e.start_time);
       if (st) v.time = ["Start", st];
@@ -563,6 +560,9 @@ class ApplianceCard extends HTMLElement {
     } else if (this._on(e.power)) {
       Object.assign(v, { colour: "attention", status: "No remote control", sub: program || "" });
     }
+
+    // An alarm during a wash replaces the programme/phase text and switches to the alert icon.
+    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm });
 
     if (!v.active) {
       const due = num(this._val(e.drum_clean_due));
