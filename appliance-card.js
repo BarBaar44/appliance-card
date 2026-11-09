@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.2.1";
+const VERSION = "0.3.0";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -43,6 +43,7 @@ const PROFILES = {
       door: "binary_sensor.laudry_door_sensor_contact",
       detergent_low: `binary_sensor.${WASHER_PREFIX}detergent_low`,
       drum_clean_due: `sensor.${WASHER_PREFIX}drum_clean_due_in`,
+      alarm: `sensor.${WASHER_PREFIX}alarm_code`,
     },
     hold_entity: "machine_state",
     tap_action: { action: "navigate", navigation_path: "#laundry" },
@@ -109,6 +110,16 @@ const DISH_PROGRAMS = {
 };
 
 const num = (v) => (v === undefined || v === null || v === "" || isNaN(Number(v)) ? null : Number(v));
+
+/* Washer alarm code -> short label; null when there is no alarm. */
+const WASHER_ALARMS = { dispenserabnormal: "Dispenser fault" };
+function washerAlarm(v) {
+  const k = key(v);
+  if (!k || ["none", "unknown", "unavailable", "null"].includes(k)) return null;
+  if (WASHER_ALARMS[k]) return WASHER_ALARMS[k];
+  const words = String(v).split(".").pop().replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
 
 /* "BSH.Common.EnumType.OperationState.Run" and "run" both become "run". */
 const key = (v) => String(v == null ? "" : v).split(".").pop().toLowerCase().replace(/[\s_-]/g, "");
@@ -198,6 +209,9 @@ ${Object.values(COLORS).map(([v, d]) => `    ${v}: ${d};`).join("\n")}
   .pl { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; line-height: 14px; color: var(--secondary-text-color); padding-top: 3px; font-variant-numeric: tabular-nums; }
   .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl .left { flex: none; }
+  /* Alarm during a wash: red icon and red alarm text; the bar keeps the running colour. */
+  .alarm .icon { color: var(--ac-badge-empty); background: color-mix(in srgb, var(--ac-badge-empty) 18%, transparent); }
+  .alarm .pl .what { color: var(--ac-badge-empty); font-weight: 500; }
 
   .badge {
     display: none; margin-top: 6px; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500;
@@ -529,6 +543,7 @@ class ApplianceCard extends HTMLElement {
     const phaseRaw = this._val(e.phase);
     const mstate = key(this._val(e.machine_state));
     const doorClosed = !!this._s(e.door) && this._s(e.door).state === "off";
+    const alarm = washerAlarm(this._val(e.alarm));
 
     if (this._on(e.unload)) {
       Object.assign(v, { colour: "unload", icon: "mdi:washing-machine-alert", status: "Unload", sub: "Finished", alert: true });
@@ -549,9 +564,13 @@ class ApplianceCard extends HTMLElement {
       Object.assign(v, { colour: "attention", status: "No remote control", sub: program || "" });
     }
 
+    // An alarm during a wash replaces the programme/phase text, in red, with a red alert icon.
+    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm, alarm: true });
+
     if (!v.active) {
       const due = num(this._val(e.drum_clean_due));
-      if (this._on(e.detergent_low)) v.badge = ["mdi:bottle-tonic-outline", "Detergent low", e.detergent_low];
+      if (alarm) v.badge = ["mdi:washing-machine-alert", alarm, e.alarm, true];
+      else if (this._on(e.detergent_low)) v.badge = ["mdi:bottle-tonic-outline", "Detergent low", e.detergent_low];
       else if (due !== null && due <= 0) v.badge = ["mdi:washing-machine", "Drum clean due", e.drum_clean_due];
     }
     return v;
@@ -612,6 +631,7 @@ class ApplianceCard extends HTMLElement {
         cell.classList.toggle("running", !!v.running);
         cell.classList.toggle("spin", !!v.spin);
         cell.classList.toggle("alert", !!v.alert);
+        cell.classList.toggle("alarm", !!v.alarm);
         cell.classList.toggle("unloading", v.colour === "unload");
       });
       if (r.icon.getAttribute("icon") !== v.icon) r.icon.setAttribute("icon", v.icon);
@@ -632,8 +652,9 @@ class ApplianceCard extends HTMLElement {
       if (showProg) {
         r.fill.style.width = `${v.pct || 0}%`;
         // Programme or phase on the left; % and time left on the right.
+        // With an alarm the % goes (the bar shows it) to leave room for the alarm text.
         r.what.textContent = v.sub;
-        r.left.textContent = [v.pct != null ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
+        r.left.textContent = [v.pct != null && !v.alarm ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
           .filter(Boolean).join(" · ");
       }
       r.badge.classList.toggle("show", !!v.badge);
@@ -682,6 +703,7 @@ const APPLIANCE_ROLE_LABELS = {
   door: "Door",
   detergent_low: "Detergent low",
   drum_clean_due: "Drum clean due in (cycles)",
+  alarm: "Alarm code",
   rinse_aid: "Rinse aid",
   salt: "Salt",
   machine_care: "Machine care due",
@@ -757,7 +779,7 @@ const APPLIANCE_EDITOR_LABELS = {
   error: "error",
   off: "off",
   badge: "badge",
-  badge_empty: "badge, supply empty (flashes)",
+  badge_empty: "badge, supply empty, washer alarm",
   ...APPLIANCE_ROLE_LABELS,
 };
 
