@@ -99,7 +99,7 @@ First match wins:
 
 Badge: alarm (red, flashes), then detergent low, then drum clean due.
 
-Alarm: when the washer reports an alarm code during a wash (running or paused), the alert icon shows and the alarm replaces the programme or phase on the progress bar, e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). Other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm.
+Alarm: when the washer reports an alarm code during a wash (running or paused), the icon turns red and the alarm replaces the programme or phase on the progress bar in red (the % goes to make room; the bar still shows it), e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). Other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm.
 
 ### Dishwasher
 

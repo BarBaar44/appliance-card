@@ -209,6 +209,9 @@ ${Object.values(COLORS).map(([v, d]) => `    ${v}: ${d};`).join("\n")}
   .pl { display: flex; justify-content: space-between; gap: 6px; font-size: 11px; line-height: 14px; color: var(--secondary-text-color); padding-top: 3px; font-variant-numeric: tabular-nums; }
   .pl span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .pl .left { flex: none; }
+  /* Alarm during a wash: red icon and red alarm text; the bar keeps the running colour. */
+  .alarm .icon { color: var(--ac-badge-empty); background: color-mix(in srgb, var(--ac-badge-empty) 18%, transparent); }
+  .alarm .pl .what { color: var(--ac-badge-empty); font-weight: 500; }
 
   .badge {
     display: none; margin-top: 6px; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500;
@@ -561,8 +564,8 @@ class ApplianceCard extends HTMLElement {
       Object.assign(v, { colour: "attention", status: "No remote control", sub: program || "" });
     }
 
-    // An alarm during a wash replaces the programme/phase text and switches to the alert icon.
-    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm });
+    // An alarm during a wash replaces the programme/phase text, in red, with a red alert icon.
+    if (alarm && v.active) Object.assign(v, { icon: "mdi:washing-machine-alert", sub: alarm, alarm: true });
 
     if (!v.active) {
       const due = num(this._val(e.drum_clean_due));
@@ -628,6 +631,7 @@ class ApplianceCard extends HTMLElement {
         cell.classList.toggle("running", !!v.running);
         cell.classList.toggle("spin", !!v.spin);
         cell.classList.toggle("alert", !!v.alert);
+        cell.classList.toggle("alarm", !!v.alarm);
         cell.classList.toggle("unloading", v.colour === "unload");
       });
       if (r.icon.getAttribute("icon") !== v.icon) r.icon.setAttribute("icon", v.icon);
@@ -648,8 +652,9 @@ class ApplianceCard extends HTMLElement {
       if (showProg) {
         r.fill.style.width = `${v.pct || 0}%`;
         // Programme or phase on the left; % and time left on the right.
+        // With an alarm the % goes (the bar shows it) to leave room for the alarm text.
         r.what.textContent = v.sub;
-        r.left.textContent = [v.pct != null ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
+        r.left.textContent = [v.pct != null && !v.alarm ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
           .filter(Boolean).join(" · ");
       }
       r.badge.classList.toggle("show", !!v.badge);
@@ -774,7 +779,7 @@ const APPLIANCE_EDITOR_LABELS = {
   error: "error",
   off: "off",
   badge: "badge",
-  badge_empty: "badge, supply empty (flashes)",
+  badge_empty: "badge, supply empty, washer alarm",
   ...APPLIANCE_ROLE_LABELS,
 };
 
