@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -112,11 +112,17 @@ const DISH_PROGRAMS = {
 const num = (v) => (v === undefined || v === null || v === "" || isNaN(Number(v)) ? null : Number(v));
 
 /* Washer alarm code -> short label; null when there is no alarm. */
-const WASHER_ALARMS = { dispenserabnormal: "Dispenser fault" };
+const WASHER_ALARMS = {
+  dispenserabnormal: "Dispenser fault",
+  errorcodedc: "Door not closed",
+};
 function washerAlarm(v) {
   const k = key(v);
   if (!k || ["none", "unknown", "unavailable", "null"].includes(k)) return null;
   if (WASHER_ALARMS[k]) return WASHER_ALARMS[k];
+  // Samsung display codes ("ErrorCode_UE") -> "Error UE"
+  const code = String(v).split(".").pop().match(/^ErrorCode[_\s-]*(\w+)$/i);
+  if (code) return `Error ${code[1].toUpperCase()}`;
   const words = String(v).split(".").pop().replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ").trim().toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }

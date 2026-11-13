@@ -110,6 +110,12 @@ assert.equal(r.washer.badge, null, "no badge while running, even with an alarm")
 r = render({ ...washer({ mstate: "pause", running: "on", phase: "wash", pct: 40, left: 50, alarm: "WaterSupplyError" }), ...dish() });
 assert.equal(r.washer.prog, "Water supply error|0:50 left", "unknown codes are spelled out");
 
+r = render({ ...washer({ power: "on", alarm: "ErrorCode_DC" }), ...dish() });
+assert.equal(r.washer.badge, "Door not closed", "Samsung DC = door not closed");
+
+r = render({ ...washer({ power: "on", alarm: "ErrorCode_UE" }), ...dish() });
+assert.equal(r.washer.badge, "Error UE", "other Samsung codes keep the display code");
+
 r = render({ ...washer({ power: "on", alarm: "DispenserAbnormal", detergent: "on", drum: 0 }), ...dish() });
 assert.equal(r.washer.badge, "Dispenser fault", "alarm before detergent and drum clean");
 assert.equal(r.washer.badgeEmpty, true, "an alarm badge flashes red");
