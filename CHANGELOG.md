@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.3.1
+
+### Added
+* **Washer alarm labels:** `ErrorCode_DC` shows as "Door not closed". Other Samsung display codes show as "Error <code>" (`ErrorCode_UE` → "Error UE") instead of "Error code ue".
+
 ## v0.3.0
 
 ### Added
