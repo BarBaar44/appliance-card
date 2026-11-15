@@ -179,6 +179,48 @@ assert(!r.card._tick);
 
 assert.throws(() => render(doorClosedAgo(90), { machines: [{ profile: "washer", auto_start_delay: "soon" }] }), /auto_start_delay/);
 
+/* "Start now" during the countdown: its own action, once, in place of the badge. */
+{
+  const goShown = (c) => c._cols[0].go.classList.contains("show");
+  r = render(doorClosedAgo(90, { detergent: "on" }));
+  assert(goShown(r.card), "Start now during the countdown");
+  assert.equal(r.washer.badge, null, "the button takes the badge's place");
+  const events = [];
+  r.card.addEventListener("hass-action", (e) => events.push(e.detail));
+  const go = r.card._cols[0].go;
+  go.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  go.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  assert.equal(events.length, 1, "one press only");
+  assert.deepEqual(JSON.parse(JSON.stringify(events[0])), {
+    config: { entity: `sensor.${W}machine_state`, tap_action: { action: "perform-action", perform_action: "script.washing_machine_start_now" } },
+    action: "tap",
+  });
+  assert.equal(r.card._cols[0].goText.textContent, "Starting…");
+  assert(go.disabled);
+  // The washer switches on: button gone and reset for next time.
+  r.card.hass = hass({ ...doorClosedAgo(90), [`binary_sensor.${W}power`]: st("on") });
+  assert(!goShown(r.card));
+  assert(!go.disabled);
+  assert.equal(r.card._cols[0].goText.textContent, "Start now");
+
+  r = render(doorClosedAgo(601));
+  assert(!goShown(r.card), "no button once the time is up");
+  r = render({ ...washer({ door: "on" }), ...dish() });
+  assert(!goShown(r.card), "no button outside the countdown");
+
+  r = render(doorClosedAgo(90), { machines: [{ profile: "washer", start_now_action: null }, { profile: "dishwasher" }] });
+  assert(!goShown(r.card), "null switches the button off");
+  assert.equal(r.washer.sub, "Auto start in 8:30", "countdown stays");
+
+  r = render(doorClosedAgo(90), { machines: [{ profile: "washer", start_now_action: { action: "perform-action", perform_action: "script.my_start" } }, { profile: "dishwasher" }] });
+  const ev2 = [];
+  r.card.addEventListener("hass-action", (e) => ev2.push(e.detail));
+  r.card._cols[0].go.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  assert.equal(ev2[0].config.tap_action.perform_action, "script.my_start", "own action");
+
+  assert.throws(() => render(doorClosedAgo(90), { machines: [{ profile: "washer", start_now_action: "script.x" }] }), /start_now_action/);
+}
+
 {
   // A programme set by hand switches the washer on: the countdown and its timer stop.
   const states = doorClosedAgo(90);

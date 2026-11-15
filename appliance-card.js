@@ -30,6 +30,8 @@ const PROFILES = {
     time_label: "Finish",
     remaining_unit: "min",
     auto_start_delay: 10, // minutes the door must stay closed before the owner's auto-start automation fires
+    // The "Start now" button during that countdown: the owner's script sets the programme and presses Start.
+    start_now_action: { action: "perform-action", perform_action: "script.washing_machine_start_now" },
     entities: {
       power: `binary_sensor.${WASHER_PREFIX}power`,
       running: `binary_sensor.${WASHER_PREFIX}running`,
@@ -226,6 +228,15 @@ ${Object.values(COLORS).map(([v, d]) => `    ${v}: ${d};`).join("\n")}
     color: var(--ac-badge); background: color-mix(in srgb, var(--ac-badge) 15%, transparent);
   }
   .badge.show { display: inline-flex; }
+  .go {
+    display: none; margin-top: 6px; align-items: center; gap: 5px; font: inherit; font-size: 12px; font-weight: 600;
+    padding: 5px 10px 5px 8px; border: none; border-radius: 8px; cursor: pointer;
+    color: var(--primary-text-color); background: color-mix(in srgb, var(--c) 30%, transparent);
+  }
+  .go.show { display: inline-flex; }
+  .go ha-icon { --mdc-icon-size: 16px; display: flex; color: var(--c); }
+  .go:disabled { opacity: .6; cursor: default; }
+  .go:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 1px; }
   .badge ha-icon { --mdc-icon-size: 14px; display: flex; flex: none; }
   .badge span { overflow: hidden; text-overflow: ellipsis; }
   /* A supply that is completely empty: red and flashing until it is refilled. */
@@ -316,6 +327,10 @@ class ApplianceCard extends HTMLElement {
       delay = Number(m.auto_start_delay);
       if (!isFinite(delay) || delay < 0) throw new Error(`${where}.auto_start_delay must be a number of minutes (0 switches the countdown off)`);
     }
+    const startNow = m.start_now_action === undefined ? p.start_now_action || null : m.start_now_action;
+    if (startNow !== null && (typeof startNow !== "object" || Array.isArray(startNow) || !startNow.action)) {
+      throw new Error(`${where}.start_now_action must be an action (e.g. action: perform-action) or null`);
+    }
     const holdEntity = entities[p.hold_entity];
     return {
       profile: m.profile,
@@ -323,6 +338,7 @@ class ApplianceCard extends HTMLElement {
       timeLabel: p.time_label,
       remainingUnit: p.remaining_unit,
       autoStartDelay: delay,
+      startNow: startNow && startNow.action !== "none" ? startNow : null,
       entities,
       tap_action: m.tap_action || p.tap_action,
       hold_action: m.hold_action || { action: "more-info" },
@@ -412,7 +428,18 @@ class ApplianceCard extends HTMLElement {
       cells[1].innerHTML = `<div class="sub"></div><div class="time"><span class="l"></span><span class="t"></span></div>`;
       cells[2].innerHTML = `
         <div class="prog"><div class="bar"><i></i></div><div class="pl"><span class="what"></span><span class="left"></span></div></div>
-        <div class="badge"><ha-icon></ha-icon><span></span></div>`;
+        <div class="badge"><ha-icon></ha-icon><span></span></div>
+        <button class="go" type="button"><ha-icon icon="mdi:play"></ha-icon><span>Start now</span></button>`;
+      // "Start now" runs its own action, not the machine's tap; one press until the state moves on.
+      const go = cells[2].querySelector(".go");
+      ["pointerdown", "pointerup", "keydown"].forEach((t) => go.addEventListener(t, (e) => e.stopPropagation()));
+      go.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (go.disabled) return;
+        go.disabled = true;
+        go.querySelector("span").textContent = "Starting…";
+        this._runAction(m, m.startNow);
+      });
       // Tapping the badge opens the sensor behind it instead of the machine's action.
       const badge = cells[2].querySelector(".badge");
       ["pointerdown", "pointerup", "keydown"].forEach((t) => badge.addEventListener(t, (e) => e.stopPropagation()));
@@ -433,6 +460,7 @@ class ApplianceCard extends HTMLElement {
         sub: q(1, ".sub"), time: q(1, ".time"), timeL: q(1, ".time .l"), timeT: q(1, ".time .t"),
         prog: q(2, ".prog"), fill: q(2, ".bar i"), what: q(2, ".what"), left: q(2, ".left"),
         badge: q(2, ".badge"), badgeIcon: q(2, ".badge ha-icon"), badgeText: q(2, ".badge span"),
+        go: q(2, ".go"), goText: q(2, ".go span"),
       };
       refs.name.textContent = m.name;
       return refs;
@@ -488,6 +516,16 @@ class ApplianceCard extends HTMLElement {
    * navigate, perform-action, more-info, url and confirmations behave
    * exactly as in built-in cards.
    */
+  _runAction(m, conf) {
+    if (!conf) return;
+    window.dispatchEvent(new CustomEvent("haptic", { detail: "light" }));
+    this.dispatchEvent(new CustomEvent("hass-action", {
+      bubbles: true,
+      composed: true,
+      detail: { config: { entity: m.entity, tap_action: conf }, action: "tap" },
+    }));
+  }
+
   _action(m, kind) {
     const conf = kind === "hold" ? m.hold_action : m.tap_action;
     if (!conf || conf.action === "none") return;
@@ -598,6 +636,7 @@ class ApplianceCard extends HTMLElement {
         if (left > 0) {
           v.sub = `Auto start in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
           v.tick = true;
+          v.startNow = !!m.startNow;
         } else {
           v.sub = "Starting…";
         }
@@ -701,6 +740,13 @@ class ApplianceCard extends HTMLElement {
         r.left.textContent = [v.pct != null && !v.alarm ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
           .filter(Boolean).join(" · ");
       }
+      // During the auto-start countdown the "Start now" button takes the badge's place.
+      r.go.classList.toggle("show", !!v.startNow);
+      if (!v.startNow && r.go.disabled) {
+        r.go.disabled = false;
+        r.goText.textContent = "Start now";
+      }
+      if (v.startNow) v.badge = null;
       r.badge.classList.toggle("show", !!v.badge);
       // Fourth element: urgent (a supply completely empty), shown red and flashing.
       r.badge.classList.toggle("empty", !!(v.badge && v.badge[3]));

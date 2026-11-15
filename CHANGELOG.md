@@ -4,6 +4,7 @@
 
 ### Added
 * **Washer auto-start countdown:** while the door is closed and the washer is off, "Program start" now shows a live countdown, e.g. "Auto start in 8:30", instead of the fixed "Auto start in ~10 min". It counts from the moment the door closed plus the new washer option `auto_start_delay` (default 10 minutes, `0` switches it off), shows "Starting…" when the time is up, and stops as soon as the washer is switched on, e.g. by setting a programme by hand.
+* **Start now:** during that countdown a "Start now" button (in place of the badge) runs the new washer option `start_now_action`, default `perform-action` `script.washing_machine_start_now`; `null` removes it. One press, then "Starting…" until the washer moves on.
 
 ## v0.3.1
 

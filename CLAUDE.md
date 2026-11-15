@@ -16,7 +16,7 @@ HACS dashboard card (Lovelace) showing the washing machine and the dishwasher si
 
 ## Rules to keep
 
-* The card never calls services on the machines. Tap and hold go through `hass-action` (HA's own handler). Start/stop logic lives in the owner's scripts (Fingerbots, guards so a running wash is never changed).
+* The card never calls services on the machines. Tap and hold, and the washer's "Start now" button (`start_now_action`), go through `hass-action` (HA's own handler). Start/stop logic lives in the owner's scripts (Fingerbots, guards so a running wash is never changed).
 * Washer and dishwasher rules are first-match-wins, as listed in the README. Dishwasher `finished` beats the door: the dishwasher opens its own door near the end.
 * Attention badges only while the machine is not running or paused. They use the progress slot, so the card never grows beyond its running height.
 * Dishwasher sensors are `unknown` while it is off: normal, not an error.
