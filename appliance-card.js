@@ -125,8 +125,18 @@ const num = (v) => (v === undefined || v === null || v === "" || isNaN(Number(v)
 /* Washer alarm code -> short label; null when there is no alarm. */
 const WASHER_ALARMS = {
   dispenserabnormal: "Dispenser fault",
+  dispenseropen: "Auto-dose tank removed",
   errorcodedc: "Door not closed",
 };
+
+/* One or more codes ("DispenserOpen, DispenserAbnormal"), minus the ignored ones, as labels. */
+function washerAlarms(v, ignore = []) {
+  if (v == null) return null;
+  const skip = ignore.map(key);
+  const labels = String(v).split(",").map((c) => c.trim()).filter((c) => c && !skip.includes(key(c))).map(washerAlarm).filter(Boolean);
+  return labels.length ? [...new Set(labels)].join(", ") : null;
+}
+
 function washerAlarm(v) {
   const k = key(v);
   if (!k || ["none", "unknown", "unavailable", "null"].includes(k)) return null;
@@ -340,6 +350,10 @@ class ApplianceCard extends HTMLElement {
     if (startNow !== null && (typeof startNow !== "object" || Array.isArray(startNow) || !startNow.action)) {
       throw new Error(`${where}.start_now_action must be an action (e.g. action: perform-action) or null`);
     }
+    const ignoreAlarms = m.ignore_alarms == null ? [] : m.ignore_alarms;
+    if (!Array.isArray(ignoreAlarms) || ignoreAlarms.some((c) => typeof c !== "string")) {
+      throw new Error(`${where}.ignore_alarms must be a list of alarm codes, e.g. [DispenserAbnormal]`);
+    }
     const holdEntity = entities[p.hold_entity];
     return {
       profile: m.profile,
@@ -347,6 +361,7 @@ class ApplianceCard extends HTMLElement {
       timeLabel: p.time_label,
       remainingUnit: p.remaining_unit,
       autoStartDelay: delay,
+      ignoreAlarms,
       startNow: startNow && startNow.action !== "none" ? startNow : null,
       // A script behind Start now is watched: running = busy.
       startNowScript: startNow && /^script\.[a-z0-9_]+$/.test(startNow.perform_action || "") ? startNow.perform_action : null,
@@ -671,7 +686,7 @@ class ApplianceCard extends HTMLElement {
     const phaseRaw = this._val(e.phase);
     const mstate = key(this._val(e.machine_state));
     const doorClosed = !!this._s(e.door) && this._s(e.door).state === "off";
-    const alarm = washerAlarm(this._val(e.alarm));
+    const alarm = washerAlarms(this._val(e.alarm), m.ignoreAlarms);
 
     if (this._on(e.unload)) {
       Object.assign(v, { colour: "unload", icon: "mdi:washing-machine-alert", status: "Unload", sub: "Finished", alert: true });

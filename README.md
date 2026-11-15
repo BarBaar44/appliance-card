@@ -64,6 +64,7 @@ Or use the card editor: one section per machine with its profile, name, every en
 | `hold_action` | `more-info`                                                           |
 | `entity`      | the target for more-info: machine state (washer), operation state (dishwasher) |
 | `auto_start_delay` | washer only: `10`. Minutes the door must stay closed before your auto-start automation sets a programme; `0` switches the countdown off. YAML only |
+| `ignore_alarms` | washer only: none. Alarm codes the card never shows, e.g. `[DispenserAbnormal]` for a dispenser that reports a false fault after every dose. YAML only |
 | `start_now_action` | washer only: `perform-action` `script.washing_machine_start_now`. The "Start now" button during the auto-start countdown; any Home Assistant action, `null` removes the button. YAML only |
 
 A misspelled entity role shows an error card instead of being ignored.
@@ -117,7 +118,7 @@ Without an `auto_start` entity (`auto_start: null`) it shows "Starting…" for 2
 
 While the countdown runs, a **Start now** button takes the badge's place. It runs `start_now_action` through Home Assistant's own action handler (so `confirmation:` works too), shows "Starting…" and stays disabled while its script runs (a `script.…` behind `perform-action` is watched) or for 30 seconds after the press; after that, e.g. after a cancelled confirmation or a failed script, it can be pressed again. An alarm badge wins over the button. The card itself calls nothing on the washer: point the action at a script that sets the programme and presses Start.
 
-Alarm: when the washer reports an alarm code during a wash (running or paused), the icon turns red and the alarm replaces the programme or phase on the progress bar in red (the % goes to make room; the bar still shows it), e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). `ErrorCode_DC` shows as "Door not closed"; other Samsung display codes keep the code (`ErrorCode_UE` → "Error UE"), and other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm.
+Alarm: when the washer reports an alarm code during a wash (running or paused), the icon turns red and the alarm replaces the programme or phase on the progress bar in red (the % goes to make room; the bar still shows it), e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). `ErrorCode_DC` shows as "Door not closed"; other Samsung display codes keep the code (`ErrorCode_UE` → "Error UE"), and other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm. Several codes at once (`DispenserOpen, DispenserAbnormal`) are each labelled (`DispenserOpen` → "Auto-dose tank removed"); codes in `ignore_alarms` are left out, so a reading with only ignored codes is no alarm.
 
 ### Dishwasher
 

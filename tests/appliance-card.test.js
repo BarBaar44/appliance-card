@@ -121,6 +121,20 @@ assert.equal(r.washer.badge, "Dispenser fault", "alarm before detergent and drum
 assert.equal(r.washer.badgeEmpty, true, "an alarm badge flashes red");
 assert.equal(r.washer.icon, "mdi:washing-machine", "idle: the alarm shows only as the badge");
 
+/* Several codes at once, and ignore_alarms. */
+const IGN = { machines: [{ profile: "washer", ignore_alarms: ["DispenserAbnormal"] }, { profile: "dishwasher" }] };
+r = render({ ...washer({ power: "on", running: "on", phase: "wash", pct: 10, left: 150, alarm: "DispenserOpen, DispenserAbnormal" }), ...dish() });
+assert.equal(r.washer.prog, "Auto-dose tank removed, Dispenser fault|2:30 left", "each code labelled");
+r = render({ ...washer({ power: "on", running: "on", phase: "wash", pct: 10, left: 150, alarm: "DispenserAbnormal" }), ...dish() }, IGN);
+assert.equal(r.alarm, false, "an ignored code is no alarm");
+assert.equal(r.washer.icon, "mdi:washing-machine");
+assert.equal(r.washer.prog, "Eco 40-60|10% · 2:30 left", "programme and % stay");
+r = render({ ...washer({ power: "on", running: "on", phase: "wash", pct: 10, left: 150, alarm: "DispenserOpen, DispenserAbnormal" }), ...dish() }, IGN);
+assert.equal(r.washer.prog, "Auto-dose tank removed|2:30 left", "the other codes still show");
+r = render({ ...washer({ power: "on", alarm: "dispenser_abnormal" }), ...dish() }, IGN);
+assert.equal(r.washer.badge, null, "ignored in any spelling, also as a badge");
+assert.throws(() => render(washer(), { machines: [{ profile: "washer", ignore_alarms: "DispenserAbnormal" }] }), /ignore_alarms/);
+
 for (const quiet of ["none", "unknown", "unavailable"]) {
   r = render({ ...washer({ power: "on", running: "on", phase: "wash", pct: 10, left: 150, alarm: quiet }), ...dish() });
   assert.equal(r.washer.icon, "mdi:washing-machine", `${quiet} is no alarm`);
