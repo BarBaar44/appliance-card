@@ -166,8 +166,35 @@ assert(r.card._tick, "ticks while counting down");
 r.card.remove();
 assert(!r.card._tick, "timer stops when the card leaves the page");
 
+/* After the delay, without the automation entity: "Starting…" for a grace period only. */
 r = render(doorClosedAgo(601));
-assert.equal(r.washer.sub, "Starting…", "delay passed: the automation is starting the washer");
+assert.equal(r.washer.sub, "Starting…", "within the grace period");
+assert(r.card._tick, "ticks until the grace period ends");
+r = render(doorClosedAgo(600 + 121));
+assert.equal(r.washer.sub, "", "grace period over: no claim that something is happening");
+assert(!r.card._tick);
+
+/* With the auto-start automation: follow what it really does. */
+const AUTO = "automation.auto_start_laundry_after_door_closed";
+const withAuto = (sec, state, attrs = {}) => ({ ...doorClosedAgo(sec), [AUTO]: st(state, attrs) });
+const ago = (sec) => new Date(Date.now() - sec * 1000).toISOString();
+r = render(withAuto(90, "on", { current: 0, last_triggered: null }));
+assert.equal(r.washer.sub, "Auto start in 8:30", "countdown as before");
+r = render(withAuto(90, "off"));
+assert.equal(r.washer.sub, "Auto start off", "automation switched off: no countdown");
+assert(!r.card._tick);
+assert(r.card._cols[0].go.classList.contains("show"), "Start now still offered");
+r = render(withAuto(605, "on", { current: 1, last_triggered: ago(5) }));
+assert.equal(r.washer.sub, "Starting…", "automation running");
+assert(!r.card._tick, "state changes drive it, no timer");
+r = render(withAuto(700, "on", { current: 0, last_triggered: ago(100) }));
+assert.equal(r.washer.sub, "Auto start failed", "ran, but the washer stayed off");
+assert.equal(r.washer.colour, col("attention"));
+r = render(withAuto(605, "on", { current: 0, last_triggered: ago(3600) }));
+assert.equal(r.washer.sub, "Starting…", "a few seconds for the automation to report");
+assert(r.card._tick);
+r = render(withAuto(620, "on", { current: 0, last_triggered: ago(3600) }));
+assert.equal(r.washer.sub, "Auto start missed", "never ran (its conditions blocked it)");
 assert(!r.card._tick);
 
 r = render(doorClosedAgo(90), { machines: [{ profile: "washer", auto_start_delay: 15 }, { profile: "dishwasher" }] });
@@ -219,6 +246,27 @@ assert.throws(() => render(doorClosedAgo(90), { machines: [{ profile: "washer", 
   assert.equal(ev2[0].config.tap_action.perform_action, "script.my_start", "own action");
 
   assert.throws(() => render(doorClosedAgo(90), { machines: [{ profile: "washer", start_now_action: "script.x" }] }), /start_now_action/);
+
+  r = render(doorClosedAgo(90, { alarm: "ErrorCode_UE" }));
+  assert(!goShown(r.card), "an alarm wins over Start now");
+  assert.equal(r.washer.badge, "Error UE");
+
+  // Busy follows the script; a press without the script running frees the button after 30 s.
+  const SCRIPT = "script.washing_machine_start_now";
+  const base = doorClosedAgo(90);
+  r = render({ ...base, [SCRIPT]: st("off") });
+  const g = r.card._cols[0].go;
+  g.dispatchEvent(new w.MouseEvent("click", { bubbles: true }));
+  assert(g.disabled, "pending after a press");
+  r.card.hass = hass({ ...base, [SCRIPT]: st("on") });
+  r.card._goPressed[0] = Date.now() - 31000;
+  r.card._update();
+  assert(g.disabled, "still busy while the script runs");
+  r.card.hass = hass({ ...base, [SCRIPT]: st("off") });
+  assert(!g.disabled, "script done, washer still off (cancelled or failed): pressable again");
+  assert.equal(r.card._cols[0].goText.textContent, "Start now");
+  r = render({ ...base, [SCRIPT]: st("on") });
+  assert(r.card._cols[0].go.disabled, "busy when the script was already running");
 }
 
 {

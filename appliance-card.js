@@ -20,6 +20,12 @@
 const VERSION = "0.4.0";
 
 const HOLD_MS = 500;
+// Without an auto_start entity: how long "Starting…" may show after the delay.
+const AUTO_START_GRACE_S = 120;
+// With one: how long to wait for the automation to report it ran.
+const AUTO_START_REPORT_S = 15;
+// "Start now" stays disabled this long after a press unless its script reports running.
+const START_NOW_PENDING_MS = 30000;
 const MOVE_TOLERANCE_PX = 10;
 
 /* Profile defaults: the owner's own entities, overridable per machine. */
@@ -47,6 +53,8 @@ const PROFILES = {
       detergent_low: `binary_sensor.${WASHER_PREFIX}detergent_low`,
       drum_clean_due: `sensor.${WASHER_PREFIX}drum_clean_due_in`,
       alarm: `sensor.${WASHER_PREFIX}alarm_code`,
+      // The owner's auto-start automation: its `current` and `last_triggered` tell the card what really happened.
+      auto_start: "automation.auto_start_laundry_after_door_closed",
     },
     hold_entity: "machine_state",
     tap_action: { action: "navigate", navigation_path: "#laundry" },
@@ -300,8 +308,9 @@ class ApplianceCard extends HTMLElement {
     this._config = { title: c.title || "", colors: c.colors || {} };
     this._applyColors(this._config.colors);
 
-    this._ids = [...new Set(this._machines.flatMap((m) => Object.values(m.entities).filter(Boolean)))];
+    this._ids = [...new Set(this._machines.flatMap((m) => [...Object.values(m.entities), m.startNowScript].filter(Boolean)))];
     this._seen = Object.create(null);
+    this._goPressed = this._machines.map(() => 0);
     this._build();
     if (this._hass) this._update();
   }
@@ -339,6 +348,8 @@ class ApplianceCard extends HTMLElement {
       remainingUnit: p.remaining_unit,
       autoStartDelay: delay,
       startNow: startNow && startNow.action !== "none" ? startNow : null,
+      // A script behind Start now is watched: running = busy.
+      startNowScript: startNow && /^script\.[a-z0-9_]+$/.test(startNow.perform_action || "") ? startNow.perform_action : null,
       entities,
       tap_action: m.tap_action || p.tap_action,
       hold_action: m.hold_action || { action: "more-info" },
@@ -436,8 +447,8 @@ class ApplianceCard extends HTMLElement {
       go.addEventListener("click", (e) => {
         e.stopPropagation();
         if (go.disabled) return;
-        go.disabled = true;
-        go.querySelector("span").textContent = "Starting…";
+        this._goPressed[i] = Date.now();
+        this._update();
         this._runAction(m, m.startNow);
       });
       // Tapping the badge opens the sensor behind it instead of the machine's action.
@@ -603,6 +614,55 @@ class ApplianceCard extends HTMLElement {
     if (left !== null) view.time = [m.timeLabel, this._clock(Date.now() + left * 60000)];
   }
 
+  /*
+   * Washer auto start, while the door is closed and the washer is off. Counts
+   * down from the door closing, like the automation's `for:`. With the
+   * automation as `auto_start` the card follows what it really does (off,
+   * running, ran but the washer stayed off, never ran); without it,
+   * "Starting…" shows for a grace period only. Setting a programme by hand
+   * switches the washer on, which ends this state.
+   */
+  _autoStart(m, v) {
+    const e = m.entities;
+    const closed = Date.parse(this._s(e.door).last_changed);
+    if (!(m.autoStartDelay > 0) || isNaN(closed)) return;
+    const auto = this._s(e.auto_start);
+    if (auto && auto.state === "off") {
+      v.sub = "Auto start off";
+      v.startNow = !!m.startNow;
+      return;
+    }
+    const due = closed + m.autoStartDelay * 60000;
+    const now = Date.now();
+    const left = Math.ceil((due - now) / 1000);
+    if (left > 0) {
+      v.sub = `Auto start in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+      v.tick = true;
+      v.startNow = !!m.startNow;
+      return;
+    }
+    if (auto && auto.state !== "unavailable" && auto.state !== "unknown") {
+      const a = auto.attributes || {};
+      // last_triggered is set when the conditions passed and the actions ran.
+      const fired = Date.parse(a.last_triggered) >= due - 5000;
+      if (Number(a.current) > 0) {
+        v.sub = "Starting…";
+      } else if (fired) {
+        Object.assign(v, { colour: "attention", sub: "Auto start failed" });
+      } else if (now < due + AUTO_START_REPORT_S * 1000) {
+        v.sub = "Starting…";
+        v.tick = true;
+      } else {
+        v.sub = "Auto start missed";
+      }
+      return;
+    }
+    if (now < due + AUTO_START_GRACE_S * 1000) {
+      v.sub = "Starting…";
+      v.tick = true;
+    }
+  }
+
   /* Washer rules, first match wins. */
   _washer(m) {
     const e = m.entities;
@@ -627,20 +687,8 @@ class ApplianceCard extends HTMLElement {
       const st = this._startClock(e.start_time);
       if (st) v.time = ["Start", st];
     } else if (doorClosed && !this._on(e.power)) {
-      // Counts down from the moment the door closed, like the auto-start automation's `for:`.
-      // Setting a programme by hand switches the washer on, which ends this state and the countdown.
       Object.assign(v, { colour: "starting", status: "Program start", sub: "" });
-      const closed = Date.parse(this._s(e.door).last_changed);
-      if (m.autoStartDelay > 0 && !isNaN(closed)) {
-        const left = Math.ceil((closed + m.autoStartDelay * 60000 - Date.now()) / 1000);
-        if (left > 0) {
-          v.sub = `Auto start in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
-          v.tick = true;
-          v.startNow = !!m.startNow;
-        } else {
-          v.sub = "Starting…";
-        }
-      }
+      this._autoStart(m, v);
     } else if (this._on(e.power)) {
       Object.assign(v, { colour: "attention", status: "No remote control", sub: program || "" });
     }
@@ -740,13 +788,19 @@ class ApplianceCard extends HTMLElement {
         r.left.textContent = [v.pct != null && !v.alarm ? `${v.pct}%` : "", v.left != null ? `${this._duration(v.left)} left` : ""]
           .filter(Boolean).join(" · ");
       }
-      // During the auto-start countdown the "Start now" button takes the badge's place.
-      r.go.classList.toggle("show", !!v.startNow);
-      if (!v.startNow && r.go.disabled) {
-        r.go.disabled = false;
-        r.goText.textContent = "Start now";
-      }
-      if (v.startNow) v.badge = null;
+      // During the auto-start countdown "Start now" takes the badge's place; an alarm wins over it.
+      const showGo = !!v.startNow && !(v.badge && v.badge[3]);
+      r.go.classList.toggle("show", showGo);
+      if (showGo) v.badge = null;
+      // Busy while its script runs, or for a while after a press (a confirmation, the script starting).
+      // A cancelled confirmation or a failed script frees the button again.
+      if (!showGo) this._goPressed[i] = 0;
+      const pending = Date.now() - (this._goPressed[i] || 0) < START_NOW_PENDING_MS;
+      const busy = showGo && (pending || this._on(m.startNowScript));
+      if (showGo && pending) tick = true; // re-enable on time without a state change
+      r.go.disabled = busy;
+      const goLabel = busy ? "Starting…" : "Start now";
+      if (r.goText.textContent !== goLabel) r.goText.textContent = goLabel;
       r.badge.classList.toggle("show", !!v.badge);
       // Fourth element: urgent (a supply completely empty), shown red and flashing.
       r.badge.classList.toggle("empty", !!(v.badge && v.badge[3]));
@@ -795,6 +849,7 @@ const APPLIANCE_ROLE_LABELS = {
   detergent_low: "Detergent low",
   drum_clean_due: "Drum clean due in (cycles)",
   alarm: "Alarm code",
+  auto_start: "Auto-start automation",
   rinse_aid: "Rinse aid",
   salt: "Salt",
   machine_care: "Machine care due",
