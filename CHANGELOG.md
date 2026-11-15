@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.0
+
+### Added
+* **Washer auto-start countdown:** while the door is closed and the washer is off, "Program start" now shows a live countdown, e.g. "Auto start in 8:30", instead of the fixed "Auto start in ~10 min". It counts from the moment the door closed plus the new washer option `auto_start_delay` (default 10 minutes, `0` switches it off), shows "Starting…" when the time is up, and stops as soon as the washer is switched on, e.g. by setting a programme by hand.
+* **Auto start followed, not guessed:** new washer role `auto_start` (default `automation.auto_start_laundry_after_door_closed`). After the delay the card shows "Starting…" while it runs, "Auto start failed" when it ran but the washer stayed off, "Auto start missed" when it never ran, and "Auto start off" (no countdown) when it is switched off. Without it, "Starting…" shows for 2 minutes and then nothing.
+* **Ignore alarms:** new washer option `ignore_alarms`, a list of alarm codes the card never shows (e.g. `[DispenserAbnormal]`). Several codes at once are now split and labelled one by one; `DispenserOpen` shows as "Auto-dose tank removed".
+* **Start now:** during that countdown a "Start now" button (in place of the badge) runs the new washer option `start_now_action`, default `perform-action` `script.washing_machine_start_now`; `null` removes it. One press, then "Starting…" while its script runs or for 30 seconds, then pressable again. An alarm badge wins over the button.
+
 ## v0.3.1
 
 ### Added
