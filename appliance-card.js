@@ -17,7 +17,7 @@
  * https://github.com/BarBaar44/appliance-card  (MIT)
  */
 
-const VERSION = "0.3.1";
+const VERSION = "0.4.0";
 
 const HOLD_MS = 500;
 const MOVE_TOLERANCE_PX = 10;
@@ -29,6 +29,7 @@ const PROFILES = {
     name: "Laundry",
     time_label: "Finish",
     remaining_unit: "min",
+    auto_start_delay: 10, // minutes the door must stay closed before the owner's auto-start automation fires
     entities: {
       power: `binary_sensor.${WASHER_PREFIX}power`,
       running: `binary_sensor.${WASHER_PREFIX}running`,
@@ -310,12 +311,18 @@ class ApplianceCard extends HTMLElement {
       }
     }
     const entities = { ...p.entities, ...ent };
+    let delay = p.auto_start_delay || 0;
+    if (m.auto_start_delay != null) {
+      delay = Number(m.auto_start_delay);
+      if (!isFinite(delay) || delay < 0) throw new Error(`${where}.auto_start_delay must be a number of minutes (0 switches the countdown off)`);
+    }
     const holdEntity = entities[p.hold_entity];
     return {
       profile: m.profile,
       name: m.name || p.name,
       timeLabel: p.time_label,
       remainingUnit: p.remaining_unit,
+      autoStartDelay: delay,
       entities,
       tap_action: m.tap_action || p.tap_action,
       hold_action: m.hold_action || { action: "more-info" },
@@ -351,6 +358,23 @@ class ApplianceCard extends HTMLElement {
 
   get hass() {
     return this._hass;
+  }
+
+  connectedCallback() {
+    if (this._hass && this._machines) this._update();
+  }
+
+  disconnectedCallback() {
+    this._setTick(false);
+  }
+
+  /* A countdown on screen re-renders every second; nothing else needs a timer. */
+  _setTick(on) {
+    if (on && !this._tick) this._tick = setInterval(() => this._update(), 1000);
+    else if (!on && this._tick) {
+      clearInterval(this._tick);
+      this._tick = null;
+    }
   }
 
   getCardSize() {
@@ -565,7 +589,19 @@ class ApplianceCard extends HTMLElement {
       const st = this._startClock(e.start_time);
       if (st) v.time = ["Start", st];
     } else if (doorClosed && !this._on(e.power)) {
-      Object.assign(v, { colour: "starting", status: "Program start", sub: "Auto start in ~10 min" });
+      // Counts down from the moment the door closed, like the auto-start automation's `for:`.
+      // Setting a programme by hand switches the washer on, which ends this state and the countdown.
+      Object.assign(v, { colour: "starting", status: "Program start", sub: "" });
+      const closed = Date.parse(this._s(e.door).last_changed);
+      if (m.autoStartDelay > 0 && !isNaN(closed)) {
+        const left = Math.ceil((closed + m.autoStartDelay * 60000 - Date.now()) / 1000);
+        if (left > 0) {
+          v.sub = `Auto start in ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+          v.tick = true;
+        } else {
+          v.sub = "Starting…";
+        }
+      }
     } else if (this._on(e.power)) {
       Object.assign(v, { colour: "attention", status: "No remote control", sub: program || "" });
     }
@@ -628,9 +664,11 @@ class ApplianceCard extends HTMLElement {
 
   _update() {
     if (!this._hass || !this._cols) return;
+    let tick = false;
     this._machines.forEach((m, i) => {
       const r = this._cols[i];
       const v = m.profile === "washer" ? this._washer(m) : this._dishwasher(m);
+      if (v.tick) tick = true;
 
       r.cells.forEach((cell) => {
         cell.style.setProperty("--c", `var(${COLORS[v.colour][0]})`);
@@ -672,6 +710,7 @@ class ApplianceCard extends HTMLElement {
         r.badge.dataset.entity = v.badge[2] || "";
       }
     });
+    this._setTick(tick && this.isConnected);
   }
 }
 
@@ -692,7 +731,7 @@ class ApplianceCard extends HTMLElement {
 
 const APPLIANCE_DEFAULT_MACHINES = [{ profile: "washer" }, { profile: "dishwasher" }];
 const APPLIANCE_MAX_MACHINES = 3;
-const APPLIANCE_MACHINE_KEYS = ["profile", "name", "entities", "tap_action", "hold_action", "entity"];
+const APPLIANCE_MACHINE_KEYS = ["profile", "name", "entities", "tap_action", "hold_action", "entity"]; // others (auto_start_delay, ...) are kept as they are
 
 const APPLIANCE_ROLE_LABELS = {
   power: "Power",

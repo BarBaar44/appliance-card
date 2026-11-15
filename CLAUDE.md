@@ -22,7 +22,7 @@ HACS dashboard card (Lovelace) showing the washing machine and the dishwasher si
 * Dishwasher sensors are `unknown` while it is off: normal, not an error.
 * Remaining time: the sensor's unit wins; defaults are minutes (washer) and hours (dishwasher).
 * Visual editor (`ApplianceCardEditor`, on `ha-form`): machines are slots `m0`..`m2`, with one empty slot (profile `none`) after the used ones; the schema is rebuilt when the profiles change. Fields show the profile defaults; only non-defaults are written; a cleared entity is `null`; a changed profile drops that machine's old values; the default pair is not written; unknown keys (card and machine) are kept. Entity roles come straight from `PROFILES`; add a label to `APPLIANCE_ROLE_LABELS` for a new role.
-* Re-render only when one of the card's own entities changes; the DOM is built once per config and updated in place.
+* Re-render only when one of the card's own entities changes; the DOM is built once per config and updated in place. Only exception: a 1-second timer while the washer auto-start countdown is on screen (stopped when it ends or the card leaves the page).
 
 ## Releasing
 

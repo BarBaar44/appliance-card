@@ -148,8 +148,46 @@ assert.equal(r.washer.time, null, "no start time without a timestamp");
 
 r = render({ ...washer({ door: "off" }), ...dish() });
 assert.equal(r.washer.status, "Program start");
-assert(r.washer.subShown, "sub line when there is no time");
 assert.equal(r.washer.colour, col("starting"));
+assert.equal(r.washer.sub, "", "no countdown without a door timestamp");
+assert(!r.card._tick, "no timer without a countdown");
+
+/* Auto-start countdown: from the door's last_changed, 10 min by default. */
+const doorClosedAgo = (sec, o = {}) => {
+  const s = { ...washer({ door: "off", ...o }), ...dish() };
+  s["binary_sensor.laudry_door_sensor_contact"] = { ...s["binary_sensor.laudry_door_sensor_contact"], last_changed: new Date(Date.now() - sec * 1000).toISOString() };
+  return s;
+};
+r = render(doorClosedAgo(90));
+assert.equal(r.washer.status, "Program start");
+assert.equal(r.washer.sub, "Auto start in 8:30");
+assert(r.washer.subShown, "countdown on the sub line");
+assert(r.card._tick, "ticks while counting down");
+r.card.remove();
+assert(!r.card._tick, "timer stops when the card leaves the page");
+
+r = render(doorClosedAgo(601));
+assert.equal(r.washer.sub, "Starting…", "delay passed: the automation is starting the washer");
+assert(!r.card._tick);
+
+r = render(doorClosedAgo(90), { machines: [{ profile: "washer", auto_start_delay: 15 }, { profile: "dishwasher" }] });
+assert.equal(r.washer.sub, "Auto start in 13:30", "own delay");
+
+r = render(doorClosedAgo(90), { machines: [{ profile: "washer", auto_start_delay: 0 }, { profile: "dishwasher" }] });
+assert.equal(r.washer.sub, "", "0 switches the countdown off");
+assert(!r.card._tick);
+
+assert.throws(() => render(doorClosedAgo(90), { machines: [{ profile: "washer", auto_start_delay: "soon" }] }), /auto_start_delay/);
+
+{
+  // A programme set by hand switches the washer on: the countdown and its timer stop.
+  const states = doorClosedAgo(90);
+  r = render(states);
+  assert(r.card._tick);
+  r.card.hass = hass({ ...states, [`binary_sensor.${W}power`]: st("on") });
+  assert.equal(r.card._cols[0].status.textContent, "No remote control");
+  assert(!r.card._tick, "timer stops when the washer is switched on");
+}
 
 r = render({ ...washer({ power: "on", door: "on" }), ...dish() });
 assert.equal(r.washer.status, "No remote control");

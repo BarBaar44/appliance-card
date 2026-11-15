@@ -63,6 +63,7 @@ Or use the card editor: one section per machine with its profile, name, every en
 | `tap_action`  | washer: `navigate` to `#laundry`. Dishwasher: `perform-action` `script.diashwasher_script` |
 | `hold_action` | `more-info`                                                           |
 | `entity`      | the target for more-info: machine state (washer), operation state (dishwasher) |
+| `auto_start_delay` | washer only: `10`. Minutes the door must stay closed before your auto-start automation sets a programme; `0` switches the countdown off. YAML only |
 
 A misspelled entity role shows an error card instead of being ignored.
 
@@ -93,11 +94,13 @@ First match wins:
 | machine state `pause`       | attention | Paused            | phase, finish, progress |
 | `running` on                | running   | the phase         | programme, finish, progress |
 | `smart_control` on          | waiting   | Waiting           | Start time, badge      |
-| door closed and power off   | starting  | Program start     | badge                  |
+| door closed and power off   | starting  | Program start     | auto-start countdown, badge |
 | power on                    | attention | No remote control | badge                  |
 | otherwise                   | off       | Off               | badge                  |
 
 Badge: alarm (red, flashes), then detergent low, then drum clean due.
+
+Auto-start countdown: while the door is closed and the washer is off, the line under "Program start" counts down to the auto start, e.g. "Auto start in 8:30", from the moment the door closed (the door entity's `last_changed`) plus `auto_start_delay`. That matches an automation that triggers on the door being closed `for:` that many minutes. Once the time is up it shows "Starting…" until the washer switches on. Setting a programme by hand switches the washer on, so the countdown stops. The card only shows the countdown; the auto start itself is your automation.
 
 Alarm: when the washer reports an alarm code during a wash (running or paused), the icon turns red and the alarm replaces the programme or phase on the progress bar in red (the % goes to make room; the bar still shows it), e.g. "Dispenser fault" for `DispenserAbnormal` (the auto-dose detergent dispenser). `ErrorCode_DC` shows as "Door not closed"; other Samsung display codes keep the code (`ErrorCode_UE` → "Error UE"), and other codes are spelled out (`WaterSupplyError` → "Water supply error"). An alarm that is still there after the wash becomes the first badge. `none`, `unknown` and `unavailable` are no alarm.
 
